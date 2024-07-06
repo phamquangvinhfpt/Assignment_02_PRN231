@@ -1,0 +1,291 @@
+﻿@page
+@using eBookStore.Service
+@inject IAuthService AuthService
+@model eBookStore.Pages.BooksModel
+@{
+    ViewData["Title"] = "Books Management";
+}
+
+<h2>Enter Book Information</h2>
+<form method="post">
+    <div class="form-group">
+        <label asp-for="Book.Title">Title:</label>
+        <input asp-for="Book.Title" class="form-control" placeholder="Book title" />
+        <span asp-validation-for="Book.Title" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Book.Type">Type:</label>
+        <input asp-for="Book.Type" class="form-control" placeholder="Book type" />
+        <span asp-validation-for="Book.Type" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Book.PubId">Publisher:</label>
+        <select asp-for="Book.PubId" class="form-control">
+            <option value="">Select publisher...</option>
+            @foreach (var publisher in Model.Publishers)
+            {
+                <option value="@publisher.PubId">@publisher.PublisherName</option>
+            }
+        </select>
+        <span asp-validation-for="Book.PubId" class="text-danger"></span>
+    </div>
+    <div class="form-group">
+        <label asp-for="Book.Price">Price:</label>
+        <input asp-for="Book.Price" class="form-control" placeholder="Price" />
+        <span asp-validation-for="Book.Price" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label asp-for="Book.PublishedDate">Published Date:</label>
+        <input asp-for="Book.PublishedDate" class="form-control" type="date" />
+        <span asp-validation-for="Book.PublishedDate" class="text-danger"></span>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="reset" class="btn btn-secondary">Clear</button>
+</form>
+
+<h2 class="mt-4">Books</h2>
+<form method="get">
+    <div class="form-group">
+        <input type="text" asp-for="SearchTerm" class="form-control mb-2" placeholder="Search...">
+    </div>
+    <div class="form-group">
+        <label asp-for="SearchField">Search in:</label>
+        <select asp-for="SearchField" class="form-control mb-2">
+            <option value="Title">Title</option>
+            <option value="Type">Type</option>
+            <option value="PublisherName">Publisher Name</option>
+        </select>
+    </div>
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th><a asp-page="./Books" asp-route-orderBy="BookId">ID</a></th>
+            <th><a asp-page="./Books" asp-route-orderBy="Title">Title</a></th>
+            <th><a asp-page="./Books" asp-route-orderBy="Type">Type</a></th>
+            <th><a asp-page="./Books" asp-route-orderBy="Price">Price</a></th>
+            <th><a asp-page="./Books" asp-route-orderBy="PublishedDate">Published Date</a></th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var book in Model.Books)
+        {
+            <tr>
+                <td>@book.BookId</td>
+                <td>@book.Title</td>
+                <td>@book.Type</td>
+                <td>@book.Price</td>
+                <td>@book.PublishedDate?.ToString("yyyy-MM-dd")</td>
+                <td>
+                    @if (AuthService.IsAdmin)
+                    {
+                        <button onclick="editBook(@book.BookId, '@book.Title', '@book.Type', @book.PubId, @book.Price, '@book.PublishedDate?.ToString("yyyy-MM-dd")')" class="btn btn-sm btn-primary">Edit</button>
+                        <button onclick="deleteBook(@book.BookId)" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this book?');">Delete</button>
+                    }
+                    <button onclick="detailBook(@book.BookId, '@book.Title', '@book.Type', @book.PubId, @book.Price, '@book.PublishedDate?.ToString("yyyy-MM-dd")')" class="btn btn-sm btn-info">Detail</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+@{
+    var prevDisabled = !Model.HasPreviousPage ? "disabled" : "";
+    var nextDisabled = !Model.HasNextPage ? "disabled" : "";
+}
+<nav aria-label="Page navigation">
+    <ul class="pagination">
+        <li class="page-item @prevDisabled">
+            <a class="page-link" href="#" onclick="changePage(@(Model.CurrentPage - 1))" aria-label="Previous">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        @for (int i = 1; i <= Math.Ceiling((double)Model.TotalCount / Model.PageSize); i++)
+        {
+            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                <a class="page-link" href="#" onclick="changePage(@i)">@i</a>
+            </li>
+        }
+        <li class="page-item @nextDisabled">
+            <a class="page-link" href="#" onclick="changePage(@(Model.CurrentPage + 1))" aria-label="Next">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    </ul>
+</nav>
+
+<!-- Edit Book Modal -->
+<div class="modal fade" id="editBookModal" tabindex="-1" role="dialog" aria-labelledby="editBookModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editBookModalLabel">Edit Book</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editBookForm">
+                    <input type="hidden" id="editBookId" name="BookId" />
+                    <div class="form-group">
+                        <label for="editTitle">Title</label>
+                        <input type="text" class="form-control" id="editTitle" name="Title" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editType">Type</label>
+                        <input type="text" class="form-control" id="editType" name="Type" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPubId">Publisher</label>
+                        <select class="form-control" id="editPubId" name="PubId" required>
+                            @foreach (var publisher in Model.Publishers)
+                            {
+                                <option value="@publisher.PubId">@publisher.PublisherName</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPrice">Price</label>
+                        <input type="number" step="0.01" class="form-control" id="editPrice" name="Price" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPublishedDate">Published Date</label>
+                        <input type="date" class="form-control" id="editPublishedDate" name="PublishedDate">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveEditBook">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        function changePage(pageNumber) {
+            var searchTerm = $('#searchInput').val(); 
+            var orderBy = $('#orderBySelect').val();
+
+            var url = '/Books?pageNumber=' + pageNumber;
+            if (searchTerm) {
+                url += '&searchTerm=' + encodeURIComponent(searchTerm);
+            }
+            if (orderBy) {
+                url += '&orderBy=' + encodeURIComponent(orderBy);
+            }
+
+            window.location.href = url;
+        }
+
+        function searchBooks() {
+            var searchTerm = $('#searchInput').val();
+            var orderBy = $('#orderBySelect').val();
+
+            var url = '/Books?pageNumber=1';
+            if (searchTerm) {
+                url += '&searchTerm=' + encodeURIComponent(searchTerm);
+            }
+            if (orderBy) {
+                url += '&orderBy=' + encodeURIComponent(orderBy);
+            }
+
+            window.location.href = url;
+        }
+
+        function changeOrder() {
+            var searchTerm = $('#searchInput').val();
+            var orderBy = $('#orderBySelect').val();
+
+            var url = '/Books?pageNumber=1';
+            if (searchTerm) {
+                url += '&searchTerm=' + encodeURIComponent(searchTerm);
+            }
+            if (orderBy) {
+                url += '&orderBy=' + encodeURIComponent(orderBy);
+            }
+
+            window.location.href = url;
+        }
+
+        function editBook(id, title, type, pubId, price, publishedDate) {
+            $('#editBookModalLabel').text('Edit Book');
+            $('#editBookId').val(id);
+            $('#editTitle').val(title);
+            $('#editType').val(type);
+            $('#editPubId').val(pubId);
+            $('#editPrice').val(price);
+            $('#editPublishedDate').val(publishedDate);
+            $('#editTitle').attr('readonly', false);
+            $('#editType').attr('readonly', false);
+            $('#editPubId').attr('disabled', false);
+            $('#editPrice').attr('readonly', false);
+            $('#editPublishedDate').attr('readonly', false);
+            $('#saveEditBook').attr('disabled', false);
+            $('#editBookModal').modal('show');
+        }
+
+        $('#saveEditBook').click(function () {
+            var book = {
+                bookId: $('#editBookId').val(),
+                title: $('#editTitle').val(),
+                type: $('#editType').val(),
+                pubId: $('#editPubId').val(),
+                price: $('#editPrice').val(),
+                publishedDate: $('#editPublishedDate').val()
+            };
+
+            $.ajax({
+                url: '/Books?handler=Edit',
+                type: 'POST',
+                data: JSON.stringify(book),
+                contentType: 'application/json',
+                headers: {
+                    "RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val()
+                },
+                success: function (result) {
+                    $('#editBookModal').modal('hide');
+                    location.reload();
+                },
+                error: function (error) {
+                    alert('Error updating book');
+                }
+            });
+        });
+
+        function deleteBook(id) {
+            if (confirm('Are you sure you want to delete this book?')) {
+                $.ajax({
+                    url: '/Books?handler=Delete&id=' + id,
+                    type: 'POST',
+                    headers: {
+                        "RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val()
+                    },
+                    success: function (result) {
+                        location.reload();
+                    },
+                    error: function (error) {
+                        alert('Error deleting book');
+                    }
+                });
+            }
+        }
+
+        function detailBook(id, title, type, pubId, price, publishedDate) {
+            $('#editBookModalLabel').text('Book Detail');
+            $('#editBookId').val(id);
+            $('#editTitle').val(title).attr('readonly', true);
+            $('#editType').val(type).attr('readonly', true);
+            $('#editPubId').val(pubId).attr('disabled', true);
+            $('#editPrice').val(price).attr('readonly', true);
+            $('#editPublishedDate').val(publishedDate).attr('readonly', true);
+            $('#saveEditBook').attr('disabled', true);
+            $('#editBookModal').modal('show');
+        }
+    </script>
+}

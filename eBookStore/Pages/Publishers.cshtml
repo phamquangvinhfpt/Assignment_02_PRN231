@@ -1,0 +1,184 @@
+﻿@page
+@model eBookStore.Pages.PublishersModel
+@{
+    ViewData["Title"] = "Publishers Management";
+}
+
+<h2>Enter Publisher Information</h2>
+<form method="post">
+    <div class="form-group">
+        <label asp-for="Publisher.PublisherName">Publisher name:</label>
+        <input asp-for="Publisher.PublisherName" class="form-control" placeholder="publisher's name" />
+        <span asp-validation-for="Publisher.PublisherName" class="text-danger"></span>
+    </div>
+    <div class="form-group mb-3">
+        <label asp-for="Publisher.City">City:</label>
+        <select asp-for="Publisher.City" class="form-control">
+            <option value="">select city...</option>
+            @foreach (var city in Model.Cities)
+            {
+                <option value="@city">@city</option>
+            }
+        </select>
+        <span asp-validation-for="Publisher.City" class="text-danger"></span>
+    </div>
+    <button type="submit" class="btn btn-primary">Save</button>
+    <button type="reset" class="btn btn-secondary">Clear</button>
+</form>
+
+<h2 class="mt-4">Publishers</h2>
+<form method="get">
+    <div class="form-group">
+        <input type="text" name="searchTerm" value="@Model.SearchTerm" class="form-control mb-2" placeholder="Search...">
+    </div>
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th><a asp-page="./Publishers" asp-route-orderBy="PubId">No</a></th>
+            <th><a asp-page="./Publishers" asp-route-orderBy="PublisherName">Publisher Name</a></th>
+            <th><a asp-page="./Publishers" asp-route-orderBy="City">City</a></th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var publisher in Model.Publishers)
+        {
+            <tr>
+                <td>@publisher.PubId</td>
+                <td>@publisher.PublisherName</td>
+                <td>@publisher.City</td>
+                <td>
+                    <button onclick="editPublisher(@publisher.PubId, '@publisher.PublisherName', '@publisher.City')" class="btn btn-sm btn-primary">Edit</button> |
+                    <button onclick="deletePublisher(@publisher.PubId)" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this publisher?');">Delete</button> |
+                    <button onclick="detailPublisher(@publisher.PubId, '@publisher.PublisherName', '@publisher.City')" class="btn btn-sm btn-info">Detail</button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@{
+    var prevDisabled = !Model.HasPreviousPage ? "disabled" : "";
+    var nextDisabled = !Model.HasNextPage ? "disabled" : "";
+}
+<a asp-page="./Publishers"
+   asp-route-pageNumber="@(Model.CurrentPage - 1)"
+   asp-route-searchTerm="@Model.SearchTerm"
+   asp-route-orderBy="@Model.OrderBy"
+   class="btn btn-primary @prevDisabled">
+    Previous
+</a>
+<a asp-page="./Publishers"
+   asp-route-pageNumber="@(Model.CurrentPage + 1)"
+   asp-route-searchTerm="@Model.SearchTerm"
+   asp-route-orderBy="@Model.OrderBy"
+   class="btn btn-primary @nextDisabled">
+    Next
+</a>
+
+<!-- Edit Publisher Modal -->
+<div class="modal fade" id="editPublisherModal" tabindex="-1" role="dialog" aria-labelledby="editPublisherModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPublisherModalLabel">Edit Publisher</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close">
+
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editPublisherForm">
+                    <input type="hidden" id="editPublisherId" name="PubId" />
+                    <div class="form-group">
+                        <label for="editPublisherName">Publisher Name</label>
+                        <input type="text" class="form-control" id="editPublisherName" name="PublisherName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editCity">City</label>
+                        <select class="form-control mb-3" id="editCity" name="City" required>
+                            @foreach (var city in Model.Cities)
+                            {
+                                <option value="@city">@city</option>
+                            }
+                        </select>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="btn btn-primary" id="saveEditPublisher">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+    <script>
+        function editPublisher(id, publisherName, city) {
+            $('#editPublisherModalLabel').text('Edit Publisher');
+            $('#editPublisherId').val(id);
+            $('#editPublisherName').val(publisherName).attr('readonly', false);
+            $('#editCity').val(city).attr('disabled', false);
+            $('#saveEditPublisher').attr('disabled', false);
+            $('#editPublisherModal').modal('show');
+        }
+
+        $('#saveEditPublisher').click(function () {
+            var publisher = {
+                PubId: $('#editPublisherId').val(),
+                PublisherName: $('#editPublisherName').val(),
+                City: $('#editCity').val()
+            };
+
+            $.ajax({
+                url: '/Publishers?handler=Edit',
+                type: 'POST',
+                data: JSON.stringify(publisher),
+                contentType: 'application/json',
+                headers: {
+                    "RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val()
+                },
+                success: function (result) {
+                    $('#editPublisherModal').modal('hide');
+                    location.reload();
+                },
+                error: function (error) {
+                    alert('Error updating publisher');
+                }
+            });
+        });
+
+        function deletePublisher(id) {
+            if (confirm('Are you sure you want to delete this publisher?')) {
+                $.ajax({
+                    url: '/Publishers?handler=Delete&id=' + id,
+                    type: 'POST',
+                    headers: {
+                        "RequestVerificationToken": $('input[name="__RequestVerificationToken"]').val()
+                    },
+                    success: function (result) {
+                        location.reload();
+                    },
+                    error: function (error) {
+                        alert('Error deleting publisher');
+                    }
+                });
+            }
+        }
+
+        function detailPublisher(id, publisherName, city) {
+            $('#editPublisherModalLabel').text('Publisher Detail');
+            $('#editPublisherId').val(id);
+            $('#editPublisherName').val(publisherName).attr('readonly', true);
+            $('#editCity').val(city).attr('disabled', true);
+            $('#saveEditPublisher').attr('disabled', true);
+            $('#editPublisherModal').modal('show');
+        }
+    </script>
+}
